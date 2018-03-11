@@ -20,8 +20,19 @@ public class DuplicateFinder {
     public static void main(String[] args) throws IOException {
         String input = JOptionPane.showInputDialog("Enter 1 to use minimal processing power, 2 to use half.\r\n" +
                 "Entering any other value will set the program to maximum value\r\nThis application is not especially CPU intensive, but using more may hinder resource-intensive applications.");
-        String drivesToCheck = JOptionPane.showInputDialog("Enter the drive letters to be checked, separated by a space.\r\n" +
-                "Ex: C D E");
+        Vector<String> drivesToCheck = new Vector<>();
+        String dr = "0";
+        while(!dr.equals("")){
+            dr = JOptionPane.showInputDialog("Enter the drive letter to be checked, one at a time.\r\n" +
+                    "Ex: C\r\nIf you want to check folders, instead enter the complete path to the folder." +
+                    "\r\nEx: C:\\Users\\<username>\\Documents\r\n" +
+                    "When you have entered all of your selections, press enter without entering anything.");
+            if(dr.equals("")){
+                break;
+            }
+            drivesToCheck.add(dr);
+        }
+
         String maxSize = JOptionPane.showInputDialog("Enter the largest file size in Megabytes that will be checked.\r\n" +
                 "(If this size is large, the running time will be very large also.");
         String colonslash = ":\\";
@@ -31,11 +42,17 @@ public class DuplicateFinder {
         Vector<String> fileName = new Vector<>();
 
         Vector<String> hashes = new Vector<>();
-        String[] drives = drivesToCheck.split(" ");
-        File[] startFile = new File[drives.length];
+        File[] startFile = new File[drivesToCheck.size()];
 
-        for(int i = 0; i < drives.length; i++){
-            startFile[i] = new File(drives[i] + colonslash);
+        for(int i = 0; i < drivesToCheck.size(); i++){
+            if(drivesToCheck.elementAt(i).length() == 1) {
+                startFile[i] = new File(drivesToCheck.elementAt(i) + colonslash);
+            }
+            else{
+                if(drivesToCheck.elementAt(i).contains(":\\")){
+                    startFile[i] = new File(drivesToCheck.elementAt(i));
+                }
+            }
         }
         /*
 
@@ -74,13 +91,13 @@ public class DuplicateFinder {
         //create threads
         long sizeLimit = Long.parseLong(maxSize);
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new FileChecker(i * (fileName.size() / numThreads), (i + 1) * (fileName.size() / numThreads), fileName, pathToFile, i, hashes, numThreads, sizeLimit, oversizedPathToFile, oversizedFileName);
+            threads[i] = new FileChecker(i * (fileName.size() / numThreads), (i + 1) * (fileName.size() / numThreads), fileName, pathToFile, i, hashes, numThreads, sizeLimit);
         }
 
         final JFrame frame = new JFrame("Duplicate Checker Progress");
 
         progressBar = new JProgressBar();
-
+        progressBar.setStringPainted(true);
         frame.setLayout(new FlowLayout());
         frame.getContentPane().add(progressBar);
 
@@ -117,18 +134,18 @@ public class DuplicateFinder {
         //iteratively move through hash vector.  If item and item + 1 have same hash, push to hashmap
 
         for(int i = 0; i < hashes.size() - 1; i++){
-            if(hashes.elementAt(i).equals(hashes.elementAt(i + 1))){
-                duplicateHashes.add(hashes.elementAt(i));
+            if(sortedHashes.elementAt(i).equals(sortedHashes.elementAt(i + 1))){
+                duplicateHashes.add(sortedHashes.elementAt(i));
             }
         }
 
         for (String s: duplicateHashes
                 ) {
             if (!s.equals("")) {
-                String temp = "Duplicates located at: ";
+                String temp = "Duplicates located at: \r\n";
                 for (int i = 0; i < hashes.size(); i++) {
                     if (hashes.elementAt(i).equals(s)) {
-                        temp += pathToFile.elementAt(i) + ", ";
+                        temp += pathToFile.elementAt(i) + ",\r\n";
                     }
 
                 }
@@ -136,7 +153,7 @@ public class DuplicateFinder {
             }
         }
 
-        writeResults();
+        writeResults(pathToFile, fileName);
 
         stop = System.currentTimeMillis();
 
@@ -164,7 +181,7 @@ public class DuplicateFinder {
             }
         }
     }
-    static void writeResults(){
+    static void writeResults(Vector pathsIn, Vector fileNames){
 
         File output = new File("Duplicate Report.txt");
         PrintWriter out = null;
@@ -183,7 +200,7 @@ public class DuplicateFinder {
         PrintWriter outOver = null;
         try {
             out = new PrintWriter(oversizedOutput);
-            out.append("The following files are too large to be checked.\r\nA manual inspection is required:\r\n");
+            out.append("The following files are too large to be checked by the settings use in this run.\r\nA manual inspection is required:\r\n");
             for (int i = 0; i < oversizedPathToFile.size(); i++) {
                 out.append(oversizedPathToFile.elementAt(i));
                 out.append("\r\n\r\n");
@@ -193,6 +210,21 @@ public class DuplicateFinder {
             e.printStackTrace();
         }
 
+        File allFilesChecked = new File("FileList.txt");
+        PrintWriter allFiles = null;
+        try{
+            allFiles = new PrintWriter(allFilesChecked);
+            allFiles.append("The following is a list of all files checked in this run:\r\n");
+            for(int i = 0; i < pathsIn.size(); i++){
+                allFiles.append("File name: " + fileNames.elementAt(i) + "\r\n");
+                allFiles.append("Path to file: " + pathsIn.elementAt(i) + "\r\n\r\n");
+            }
+            allFiles.close();
+        } catch (FileNotFoundException e){
+            e.printStackTrace();
+        }
+
+        System.exit(0);
     }
 }
 class FileChecker extends Thread {
@@ -207,7 +239,7 @@ class FileChecker extends Thread {
     Vector<String> oPaths;
     Vector<String> oFNames;
 
-    FileChecker(int s, int st, Vector name, Vector path, int myID, Vector hash, int numT, long sizeLimit, Vector oPath, Vector oName) {
+    FileChecker(int s, int st, Vector name, Vector path, int myID, Vector hash, int numT, long sizeLimit) {
         this.start = myID;
         this.stop = st;
         this.fNames = name;
@@ -216,8 +248,7 @@ class FileChecker extends Thread {
         this.hashVector = hash;
         this.totalThreads = numT;
         this.fileSizeLimit = sizeLimit;
-        this.oPaths = oPath;
-        this.oFNames = oName;
+
     }
 
     @Override
@@ -226,6 +257,7 @@ class FileChecker extends Thread {
 
         String md5 = "";
         for (int i = start; i < paths.size(); i += this.totalThreads) {
+            md5 = "";
             if(new File(paths.elementAt(i)).length() < 1000000 * fileSizeLimit) {
                 FileInputStream fis = null;
                 try {
@@ -235,14 +267,12 @@ class FileChecker extends Thread {
                 }
                 try {
                     md5 = org.apache.commons.codec.digest.DigestUtils.sha1Hex(fis);
+                    fis.close();
                 } catch (Exception e){
                     e.printStackTrace();
                 }
-                try {
-                    fis.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+
+
                 //store hash in vector provided
 
                 hashVector.set(i, md5);
@@ -250,10 +280,17 @@ class FileChecker extends Thread {
                 //System.out.println
 
                 //System.out.println(i + ": " + md5 + " : " + paths.elementAt(i));
-                if(i % 100 == 0){
-                    DuplicateFinder.progressBar.setValue(i);
+                if(i > DuplicateFinder.progressBar.getValue()){
+                    synchronized (this) {
+                        DuplicateFinder.progressBar.setValue(i);
+                    }
                 }
 
+                /*testing*/
+                if(i % 100 == 0 || i % 101 == 0 || i % 102 == 0 || i % 103 == 0) {
+                    System.out.println(ID + " " + i);
+                }
+                /**/
             }
             /*
             else{
@@ -261,6 +298,6 @@ class FileChecker extends Thread {
             }
             */
         }
+
     }
 }
-
