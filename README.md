@@ -22,4 +22,5 @@ The program does the file discovery and hash matching in serial, as these are no
 Future plans:
 
 Support OSX/Linux
+
 Find a hashing algorithm that is ideal with regards to speed vs collisions
