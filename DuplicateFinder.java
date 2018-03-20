@@ -1,7 +1,3 @@
-import com.sun.org.apache.bcel.internal.generic.DUP;
-import org.apache.commons.io.IOUtils;
-import sun.nio.ch.IOUtil;
-
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
@@ -61,7 +57,7 @@ public class DuplicateFinder {
          */
         for (int i = 0; i < startFile.length; i++) {
             fileExplorer(startFile[i], pathToFile, fileName, Long.parseLong(maxSize), oversizedPathToFile, oversizedFileName);
-            System.out.println("Drive" + (i + 1) + " checked.");
+            System.out.println("Drive " + (i + 1) + " checked.");
         }
         System.out.println(pathToFile.size());
 
@@ -76,6 +72,9 @@ public class DuplicateFinder {
         }
         else if(input.equals("2")){
             numThreads = Runtime.getRuntime().availableProcessors()/2;
+        }
+        else if(input.equals("10")){
+            numThreads = Runtime.getRuntime().availableProcessors() * 10;
         }
         else{
             numThreads = Runtime.getRuntime().availableProcessors();
@@ -93,6 +92,8 @@ public class DuplicateFinder {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new FileChecker(i * (fileName.size() / numThreads), (i + 1) * (fileName.size() / numThreads), fileName, pathToFile, i, hashes, numThreads, sizeLimit);
         }
+
+        WatcherThread watcher = new WatcherThread(threads);
 
         final JFrame frame = new JFrame("Duplicate Checker Progress");
 
@@ -113,6 +114,8 @@ public class DuplicateFinder {
             threads[i].start();
         }
 
+        watcher.start();
+
         //ensure all threads have completed before moving on
         for (int i = 0; i < threads.length; i++) {
             try {
@@ -122,12 +125,21 @@ public class DuplicateFinder {
             }
         }
 
+        try {
+            watcher.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         //sort vector of hashes
 
         Vector<String> sortedHashes = (Vector<String>) hashes.clone();
 
+        System.out.println("Hashes Duplicated");
+
         Collections.sort(sortedHashes);
 
+        System.out.println("Hashes Sorted");
         //create hashmap
         TreeSet<String> duplicateHashes = new TreeSet<>();
 
@@ -136,11 +148,26 @@ public class DuplicateFinder {
         for(int i = 0; i < hashes.size() - 1; i++){
             if(sortedHashes.elementAt(i).equals(sortedHashes.elementAt(i + 1))){
                 duplicateHashes.add(sortedHashes.elementAt(i));
+                System.out.println("Duplicate found at " + i);
             }
         }
 
+        frame.remove(progressBar);
+
+        progressBar = new JProgressBar();
+
+        frame.add(progressBar);
+
+        progressBar.setMinimum(0);
+        progressBar.setValue(0);
+        progressBar.setStringPainted(true);
+        progressBar.setMaximum(duplicateHashes.size());
+
+        int count = 0;
+
         for (String s: duplicateHashes
                 ) {
+            System.out.println("Checking duplicate " + s);
             if (!s.equals("")) {
                 String temp = "Duplicates located at: \r\n";
                 for (int i = 0; i < hashes.size(); i++) {
@@ -149,6 +176,9 @@ public class DuplicateFinder {
                     }
 
                 }
+                System.out.println("Checked " + count + " of " + duplicateHashes.size());
+                ++count;
+                progressBar.setValue(count);
                 duplicates.add(temp);
             }
         }
@@ -176,7 +206,9 @@ public class DuplicateFinder {
                     overFileName.add(f.getName());
                 }
                 else {
-                    fileExplorer(f, pathToFile, fileName, fileSize, overPathToFile, overFileName);
+                    if(!f.getPath().contains("\\Windows\\")) {
+                        fileExplorer(f, pathToFile, fileName, fileSize, overPathToFile, overFileName);
+                    }
                 }
             }
         }
@@ -238,6 +270,7 @@ class FileChecker extends Thread {
     Vector<String> hashVector;
     Vector<String> oPaths;
     Vector<String> oFNames;
+    int i;
 
     FileChecker(int s, int st, Vector name, Vector path, int myID, Vector hash, int numT, long sizeLimit) {
         this.start = myID;
@@ -248,7 +281,10 @@ class FileChecker extends Thread {
         this.hashVector = hash;
         this.totalThreads = numT;
         this.fileSizeLimit = sizeLimit;
+    }
 
+    public int getI(){
+        return this.i;
     }
 
     @Override
@@ -256,7 +292,7 @@ class FileChecker extends Thread {
         //for each file in scope, determine the hash of the file contents
 
         String md5 = "";
-        for (int i = start; i < paths.size(); i += this.totalThreads) {
+        for (i = start; i < paths.size(); i += this.totalThreads) {
             md5 = "";
             if(new File(paths.elementAt(i)).length() < 1000000 * fileSizeLimit) {
                 FileInputStream fis = null;
@@ -287,9 +323,9 @@ class FileChecker extends Thread {
                 }
 
                 /*testing*/
-                if(i % 100 == 0 || i % 101 == 0 || i % 102 == 0 || i % 103 == 0) {
-                    System.out.println(ID + " " + i);
-                }
+                //if(i % 100 == 0 || i % 101 == 0 || i % 102 == 0 || i % 103 == 0) {
+                    System.out.println(ID + " " + i + " " + paths.elementAt(i));
+                //}
                 /**/
             }
             /*
@@ -297,6 +333,48 @@ class FileChecker extends Thread {
                 DuplicateFinder.oversized.add(paths.elementAt(i));
             }
             */
+        }
+
+    }
+}
+class WatcherThread extends Thread{
+
+    FileChecker[] arr;
+    WatcherThread(FileChecker[] arrIn){
+        this.arr = arrIn;
+    }
+
+    boolean isLive(){
+        boolean isLive = false;
+
+        for(int i = 0; i < arr.length; i++){
+            if(arr[i].isAlive()){
+                isLive = true;
+            }
+        }
+
+        return isLive;
+
+    }
+
+    @Override
+    public void run() {
+
+        while (isLive()) {
+            int average = 0;
+            for (int i = 0; i < arr.length; i++) {
+                average += arr[i].getI();
+            }
+            average /= arr.length;
+
+
+            DuplicateFinder.progressBar.setValue(average);
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
     }
