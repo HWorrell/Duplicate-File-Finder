@@ -9,6 +9,7 @@ import java.util.Vector;
 public class DuplicateFinder {
     static Vector<String> duplicates = new Vector<>();
     static JProgressBar progressBar;
+    static JProgressBar progressBar2;
     static Vector<String> oversized = new Vector<>();
     static Vector<String> oversizedPathToFile = new Vector<>();
     static Vector<String> oversizedFileName = new Vector<>();
@@ -109,6 +110,15 @@ public class DuplicateFinder {
         progressBar.setMinimum(0);
         progressBar.setMaximum(pathToFile.size());
 
+        progressBar2 = new JProgressBar();
+
+        frame.add(progressBar2);
+
+        progressBar2.setMinimum(0);
+        progressBar2.setValue(0);
+        progressBar2.setStringPainted(true);
+
+
         //start threads
         for (int i = 0; i < threads.length; i++) {
             threads[i].start();
@@ -152,16 +162,8 @@ public class DuplicateFinder {
             }
         }
 
-        frame.remove(progressBar);
 
-        progressBar = new JProgressBar();
-
-        frame.add(progressBar);
-
-        progressBar.setMinimum(0);
-        progressBar.setValue(0);
-        progressBar.setStringPainted(true);
-        progressBar.setMaximum(duplicateHashes.size());
+        progressBar2.setMaximum(duplicateHashes.size());
 
         int count = 0;
 
@@ -316,12 +318,14 @@ class FileChecker extends Thread {
                 //System.out.println
 
                 //System.out.println(i + ": " + md5 + " : " + paths.elementAt(i));
+
+                /*
                 if(i > DuplicateFinder.progressBar.getValue()){
                     synchronized (this) {
                         DuplicateFinder.progressBar.setValue(i);
                     }
                 }
-
+                */
                 /*testing*/
                 //if(i % 100 == 0 || i % 101 == 0 || i % 102 == 0 || i % 103 == 0) {
                     System.out.println(ID + " " + i + " " + paths.elementAt(i));
