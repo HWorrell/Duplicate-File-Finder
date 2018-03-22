@@ -24,3 +24,5 @@ Future plans:
 Support OSX/Linux
 
 Find a hashing algorithm that is ideal with regards to speed vs collisions
+
+Clean up the code to a more readable version than the current testing build
